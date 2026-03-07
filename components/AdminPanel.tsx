@@ -405,6 +405,11 @@ const HeroManager: React.FC<{
 }> = ({ state, onUpdateHeroImages }) => {
   const [localImages, setLocalImages] = useState<string[]>(state.heroImages);
 
+  // Sync with state when it changes
+  useEffect(() => {
+    setLocalImages(state.heroImages);
+  }, [state.heroImages]);
+
   const handleSave = () => {
     onUpdateHeroImages(localImages);
     alert('Hero images saved successfully');
