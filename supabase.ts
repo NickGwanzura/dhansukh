@@ -36,59 +36,25 @@ export const isSupabaseConnected = () => false;
 export const sql = null;
 export const utapi = null;
 
-// UploadThing helper for client-side uploads using the correct API
+// UploadThing helper for client-side uploads using the local API route
 export const uploadFile = async (file: File): Promise<{ url: string; error: string | null }> => {
-  if (!UPLOADTHING_CONFIG.token) {
-    return { url: '', error: 'UploadThing not configured' };
-  }
-  
   try {
-    // Use UploadThing's v6 API
-    const response = await fetch('https://uploadthing.com/v6/multipart', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${UPLOADTHING_CONFIG.token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        files: [{
-          name: file.name,
-          size: file.size,
-          type: file.type,
-        }],
-        metadata: {
-          appId: UPLOADTHING_CONFIG.appId,
-        }
-      }),
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`UploadThing error: ${errorText}`);
-    }
-    
-    const data = await response.json();
-    
-    // Get the presigned URL for upload
-    const { data: { uploadUrl, fields, fileUrl } } = data;
-    
-    // Upload the file to the presigned URL
+    // Use local API route which proxies to UploadThing (avoids CORS)
     const formData = new FormData();
-    for (const [key, value] of Object.entries(fields)) {
-      formData.append(key, value as string);
-    }
     formData.append('file', file);
     
-    const uploadResponse = await fetch(uploadUrl, {
+    const response = await fetch('/api/upload', {
       method: 'POST',
       body: formData,
     });
     
-    if (!uploadResponse.ok) {
-      throw new Error('Failed to upload file');
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Upload failed');
     }
     
-    return { url: fileUrl, error: null };
+    const data = await response.json();
+    return { url: data.url || '', error: null };
   } catch (error) {
     console.error('Upload error:', error);
     return { url: '', error: error instanceof Error ? error.message : 'Upload failed' };
