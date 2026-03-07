@@ -4,5 +4,13 @@
       "source": "/((?!assets/|.*\\..*).*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "env": {
+    "SUPABASE_URL": "https://gussxwogchechkeixyfr.supabase.co",
+    "SUPABASE_KEY": "sb_publishable_J-Fgi6K9Eo3E19A7cF6kVA_0gPJt9W4",
+    "UPLOADTHING_TOKEN": "eyJhcGlLZXkiOiJza19saXZlXzVjOTRhZmYyM2MxMWEyNGQzYTljZDhiYjA5MWQ4MmZiZTI2OGNmM2MxODVkYTk3YTM3MTBiZDg0ZjY2OWE0OGYiLCJhcHBJZCI6IjQ1OWl5aml5eW0iLCJyZWdpb25zIjpbInNlYTEiXX0=",
+    "NEON_CONNECTION_STRING": "postgresql://neondb_owner:npg_7uRDkK9LnHZs@ep-flat-art-ad96qbvu-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+  },
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist"
 }
