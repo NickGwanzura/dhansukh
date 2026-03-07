@@ -505,7 +505,7 @@ const CloudManager: React.FC = () => {
       <div className="bg-white rounded-3xl p-8 shadow-airbnb border border-gray-100 space-y-6">
         <div className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide flex items-center gap-2"><Globe size={14} /> Supabase Project URL</label>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide flex items-center gap-2"><Globe size={14} /> Supabase/Neon Project URL</label>
             <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://your-project.supabase.co" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand outline-none bg-gray-50 focus:bg-white transition-all text-gray-dark" />
           </div>
           <div className="space-y-1">
