@@ -13,7 +13,8 @@
     "@supabase/supabase-js": "^2.39.7",
     "lucide-react": "^0.560.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "uploadthing": "^7.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

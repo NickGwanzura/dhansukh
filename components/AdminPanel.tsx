@@ -10,7 +10,7 @@ import {
   Wifi, WifiOff, CloudDownload, Share2, Smartphone
 } from 'lucide-react';
 import { AppState, MainHouseData, Cottage } from '../types';
-import { supabase } from '../supabase';
+import { supabase, uploadFile } from '../supabase';
 // Fix: Import Calendar component
 import Calendar from './Calendar';
 
@@ -167,26 +167,39 @@ const MediaLibrary: React.FC<{
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !supabase) return;
+    if (!file) return;
 
     setIsUploading(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `uploads/${fileName}`;
+      // Use UploadThing for file uploads
+      const result = await uploadFile(file);
+      
+      if (result.error) {
+        // Fallback to Supabase storage if UploadThing fails
+        if (supabase) {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${Math.random()}.${fileExt}`;
+          const filePath = `uploads/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('property-images')
-        .upload(filePath, file);
+          const { error: uploadError } = await supabase.storage
+            .from('property-images')
+            .upload(filePath, file);
 
-      if (uploadError) throw uploadError;
+          if (uploadError) throw new Error(uploadError.message);
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('property-images')
-        .getPublicUrl(filePath);
+          const { data: { publicUrl } } = supabase.storage
+            .from('property-images')
+            .getPublicUrl(filePath);
 
-      if (single) onUpdate([publicUrl]);
-      else onUpdate([...images, publicUrl]);
+          if (single) onUpdate([publicUrl]);
+          else onUpdate([...images, publicUrl]);
+        } else {
+          throw new Error(result.error);
+        }
+      } else if (result.url) {
+        if (single) onUpdate([result.url]);
+        else onUpdate([...images, result.url]);
+      }
     } catch (err: any) {
       alert(`Error uploading: ${err.message}`);
     } finally {
@@ -201,7 +214,7 @@ const MediaLibrary: React.FC<{
         <div className="flex gap-2">
            <button 
              onClick={() => fileInputRef.current?.click()} 
-             disabled={isUploading || !supabase}
+             disabled={isUploading}
              className="text-xs font-bold text-brand flex items-center gap-1.5 px-3 py-1.5 bg-brand/5 rounded-lg hover:bg-brand/10 transition-colors disabled:opacity-50"
            >
              {isUploading ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />}
