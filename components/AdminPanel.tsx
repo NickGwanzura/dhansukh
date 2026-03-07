@@ -175,18 +175,18 @@ const MediaLibrary: React.FC<{
       const fileName = `${Math.random()}.${fileExt}`;
       const filePath = `uploads/${fileName}`;
 
-      const { error: uploadError, data } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('property-images')
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      // Get public URL from the uploaded file
-      const { data: urlData } = supabase.storage
+      const { data: { publicUrl } } = supabase.storage
         .from('property-images')
-        .getPublicUrl(data.path);
-      
-      const publicUrl = urlData?.publicUrl || '';
+        .getPublicUrl(filePath);
+
+      if (single) onUpdate([publicUrl]);
+      else onUpdate([...images, publicUrl]);
     } catch (err: any) {
       alert(`Error uploading: ${err.message}`);
     } finally {
