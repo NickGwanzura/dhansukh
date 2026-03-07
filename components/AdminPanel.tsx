@@ -175,27 +175,7 @@ const MediaLibrary: React.FC<{
       const result = await uploadFile(file);
       
       if (result.error) {
-        // Fallback to Supabase storage if UploadThing fails
-        if (supabase) {
-          const fileExt = file.name.split('.').pop();
-          const fileName = `${Math.random()}.${fileExt}`;
-          const filePath = `uploads/${fileName}`;
-
-          const { error: uploadError } = await supabase.storage
-            .from('property-images')
-            .upload(filePath, file);
-
-          if (uploadError) throw new Error(uploadError.message);
-
-          const { data: { publicUrl } } = supabase.storage
-            .from('property-images')
-            .getPublicUrl(filePath);
-
-          if (single) onUpdate([publicUrl]);
-          else onUpdate([...images, publicUrl]);
-        } else {
-          throw new Error(result.error);
-        }
+        throw new Error(result.error);
       } else if (result.url) {
         if (single) onUpdate([result.url]);
         else onUpdate([...images, result.url]);

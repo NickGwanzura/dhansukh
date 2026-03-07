@@ -43,26 +43,10 @@ function App() {
       setAppState(migrateState(JSON.parse(cached)));
     }
 
-    if (supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('settings')
-          .select('data')
-          .eq('name', 'app_state')
-          .maybeSingle();
-
-        if (data?.data) {
-          const cloudState = migrateState(data.data);
-          setAppState(cloudState);
-          localStorage.setItem('dhan_sukh_state', JSON.stringify(data.data));
-        } else if (!appState) {
-          setAppState(migrateState({}));
-        }
-      } catch (e) {
-        if (!appState) setAppState(migrateState({}));
-      }
-    } else {
-      if (!appState) setAppState(migrateState({}));
+    // Using localStorage for data persistence
+    // (Neon database would require server-side API)
+    if (!appState) {
+      setAppState(migrateState({}));
     }
 
     setIsLoading(false);
@@ -71,21 +55,14 @@ function App() {
   }, [appState]);
 
   const saveToCloud = async (newState: AppState) => {
-    if (!isInitialLoadDone.current || !supabase) return;
+    if (!isInitialLoadDone.current) return;
     
     setIsSyncing(true);
     try {
-      await supabase
-        .from('settings')
-        .upsert({ 
-          name: 'app_state', 
-          data: newState, 
-          updated_at: new Date().toISOString() 
-        }, { onConflict: 'name' });
-      
+      // Save to localStorage (Neon would require server-side API)
       localStorage.setItem('dhan_sukh_state', JSON.stringify(newState));
     } catch (e) {
-      console.error("Cloud save failed:", e);
+      console.error("Save failed:", e);
     } finally {
       setIsSyncing(false);
     }
