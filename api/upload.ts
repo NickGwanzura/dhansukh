@@ -1,10 +1,10 @@
-// Image upload endpoint - Imgur primary, base64 fallback
+// Image upload endpoint - Supabase primary, UploadThing fallback
 export const config = {
   runtime: 'edge',
 };
 
-// Imgur Client ID for anonymous uploads
-const IMGUR_CLIENT_ID = '546c25a59c58ad7';
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY || '';
 
 export default async function handler(req: Request) {
   if (req.method !== 'POST') {
@@ -14,7 +14,7 @@ export default async function handler(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File;
-    const useImgur = formData.get('useImgur') !== 'false'; // Default to Imgur
+    const useSupabase = formData.get('useSupabase') !== 'false'; // Default to Supabase
     
     if (!file) {
       return new Response(JSON.stringify({ error: 'No file provided' }), { 
@@ -31,58 +31,53 @@ export default async function handler(req: Request) {
       });
     }
 
-    const sizeInKB = Math.round(file.size / 1024);
-
-    // Use Imgur for larger files or when explicitly requested
-    if (useImgur || file.size > 500 * 1024) {
+    // Try Supabase first if configured and requested
+    if (useSupabase && SUPABASE_URL && SUPABASE_SERVICE_KEY) {
       try {
-        // Convert file to base64 for Imgur
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `dhan-sukh/${fileName}`;
+
+        // Convert file to buffer
         const arrayBuffer = await file.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
         
-        // Upload to Imgur
-        const imgurResponse = await fetch('https://api.imgur.com/3/image', {
+        // Upload to Supabase Storage
+        const uploadUrl = `${SUPABASE_URL}/storage/v1/object/property-images/${filePath}`;
+        
+        const uploadResponse = await fetch(uploadUrl, {
           method: 'POST',
           headers: {
-            'Authorization': `Client-ID ${IMGUR_CLIENT_ID}`,
-            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+            'Content-Type': file.type,
+            'x-upsert': 'false',
           },
-          body: JSON.stringify({
-            image: base64,
-            type: 'base64',
-            title: file.name,
-          }),
+          body: arrayBuffer,
         });
 
-        if (!imgurResponse.ok) {
-          const errorData = await imgurResponse.text();
-          console.error('Imgur error:', imgurResponse.status, errorData);
-          throw new Error(`Imgur upload failed: ${imgurResponse.status}`);
-        }
-
-        const imgurData = await imgurResponse.json();
-        
-        if (imgurData.success && imgurData.data?.link) {
+        if (uploadResponse.ok) {
+          const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/property-images/${filePath}`;
           return new Response(JSON.stringify({ 
-            url: imgurData.data.link,
-            deleteHash: imgurData.data.deletehash,
+            url: publicUrl,
             name: file.name,
             size: file.size,
-            source: 'imgur',
+            path: filePath,
+            source: 'supabase',
           }), { 
             status: 200, 
             headers: { 'Content-Type': 'application/json' } 
           });
         } else {
-          throw new Error('Imgur response invalid');
+          const errorData = await uploadResponse.text();
+          console.error('Supabase upload failed:', uploadResponse.status, errorData);
+          // Fall through to base64
         }
-      } catch (imgurError: any) {
-        console.error('Imgur upload failed, falling back to base64:', imgurError);
+      } catch (supabaseError: any) {
+        console.error('Supabase error, falling back:', supabaseError);
         // Fall through to base64
       }
     }
 
-    // Fallback: Base64 inline (for small images)
+    // Fallback: Base64 inline (for small images or when Supabase fails)
     const arrayBuffer = await file.arrayBuffer();
     const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
     const dataUrl = `data:${file.type};base64,${base64}`;

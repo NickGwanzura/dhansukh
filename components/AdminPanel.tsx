@@ -183,7 +183,6 @@ const MediaLibrary: React.FC<{
 }> = ({ label, images, onUpdate, single = false }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [supabaseConnected, setSupabaseConnected] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const fileInputLocalRef = useRef<HTMLInputElement>(null);
   const fileInputSupabaseRef = useRef<HTMLInputElement>(null);
 
@@ -208,7 +207,7 @@ const MediaLibrary: React.FC<{
     else onUpdate(images.filter((_, i) => i !== idx));
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, storage: 'imgur' | 'local' | 'supabase' = 'imgur') => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, storage: 'supabase' | 'local' = 'supabase') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -224,24 +223,11 @@ const MediaLibrary: React.FC<{
     setIsUploading(true);
     
     try {
-      let endpoint = '/api/upload';
-      let source = 'imgur';
-      
-      if (storage === 'supabase') {
-        endpoint = '/api/upload-supabase';
-        source = 'supabase';
-      } else if (storage === 'local') {
-        source = 'base64';
-      }
-      
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('useSupabase', storage === 'supabase' ? 'true' : 'false');
       
-      if (storage === 'imgur' || storage === 'local') {
-        formData.append('useImgur', storage === 'imgur' ? 'true' : 'false');
-      }
-      
-      const response = await fetch(endpoint, {
+      const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       });
@@ -256,7 +242,7 @@ const MediaLibrary: React.FC<{
         if (single) onUpdate([result.url]);
         else onUpdate([...images, result.url]);
         
-        const displaySource = result.source || source;
+        const displaySource = result.source || storage;
         console.log(`Image uploaded (${displaySource}): ${sizeInKB}KB`);
         
         if (displaySource === 'supabase') {
@@ -270,7 +256,6 @@ const MediaLibrary: React.FC<{
       alert(`Upload failed: ${err.message}`);
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
       if (fileInputLocalRef.current) fileInputLocalRef.current.value = '';
       if (fileInputSupabaseRef.current) fileInputSupabaseRef.current.value = '';
     }
@@ -281,26 +266,28 @@ const MediaLibrary: React.FC<{
       <div className="flex items-center justify-between flex-wrap gap-2">
         <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">{label}</label>
         <div className="flex gap-2 flex-wrap">
-           {/* Imgur Upload - Recommended */}
-           <button 
-             onClick={() => fileInputRef.current?.click()} 
-             disabled={isUploading}
-             className="text-xs font-bold text-green-600 flex items-center gap-1.5 px-3 py-1.5 bg-green-50 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50"
-             title="Upload to Imgur - Unlimited storage, works in Zimbabwe"
-           >
-             {isUploading ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
-             Upload to Imgur
-           </button>
+           {/* Supabase Upload - Primary */}
+           {supabaseConnected && (
+             <button 
+               onClick={() => fileInputSupabaseRef.current?.click()} 
+               disabled={isUploading}
+               className="text-xs font-bold text-blue-600 flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+               title="Upload to Supabase - 1GB free storage"
+             >
+               {isUploading ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />}
+               Supabase
+             </button>
+           )}
            
-           {/* Local Upload - Small files only */}
+           {/* Local Upload - Fallback */}
            <button 
              onClick={() => fileInputLocalRef.current?.click()} 
              disabled={isUploading}
              className="text-xs font-bold text-brand flex items-center gap-1.5 px-3 py-1.5 bg-brand/5 rounded-lg hover:bg-brand/10 transition-colors disabled:opacity-50"
              title="Store locally - Limited to 50MB total"
            >
-             {isUploading ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />}
-             Store Local
+             {isUploading ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />}
+             Local
            </button>
            
            <button onClick={handleAddUrl} className="text-xs font-bold text-gray-500 flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
@@ -320,7 +307,6 @@ const MediaLibrary: React.FC<{
              </button>
            )}
            
-           <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'imgur')} />
            <input type="file" ref={fileInputLocalRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'local')} />
            <input type="file" ref={fileInputSupabaseRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'supabase')} />
         </div>
@@ -328,20 +314,16 @@ const MediaLibrary: React.FC<{
       
       {/* Storage info */}
       <div className="text-[10px] text-gray-400 flex gap-4 flex-wrap">
-        <span className="flex items-center gap-1" title="Unlimited free storage">
-          <span className="w-2 h-2 rounded-full bg-green-500"></span>
-          Imgur: Unlimited
-        </span>
-        <span className="flex items-center gap-1" title="Limited browser storage">
-          <span className="w-2 h-2 rounded-full bg-brand"></span>
-          Local: 50MB
-        </span>
         {supabaseConnected && (
-          <span className="flex items-center gap-1" title="Supabase storage">
+          <span className="flex items-center gap-1" title="Supabase storage - Primary">
             <span className="w-2 h-2 rounded-full bg-blue-500"></span>
             Supabase: 1GB
           </span>
         )}
+        <span className="flex items-center gap-1" title="Limited browser storage - Fallback">
+          <span className="w-2 h-2 rounded-full bg-brand"></span>
+          Local: 50MB
+        </span>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">

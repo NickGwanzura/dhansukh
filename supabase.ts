@@ -2,14 +2,12 @@
 /**
  * 🛠️ Configuration for Database & Storage
  * 
- * Storage Options:
- * - Supabase Storage (1GB free, recommended)
- * - Imgur (unlimited, anonymous)
- * - Base64 (browser storage, limited)
+ * Database: Neon PostgreSQL
+ * Storage: Supabase Storage (1GB free) with base64 fallback
  * 
  * Environment Variables:
- * - SUPABASE_URL
- * - SUPABASE_ANON_KEY
+ * - SUPABASE_URL / VITE_SUPABASE_URL
+ * - SUPABASE_ANON_KEY / VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -39,12 +37,11 @@ export async function initializeDatabase(): Promise<void> {
   }
 }
 
-// Upload helper - tries Supabase first, falls back to Imgur/base64
+// Upload helper - tries Supabase first, falls back to base64
 export const uploadFile = async (
   file: File, 
   options?: { 
     useSupabase?: boolean;
-    useImgur?: boolean;
     bucket?: string;
   }
 ): Promise<{ 
@@ -56,16 +53,9 @@ export const uploadFile = async (
     const formData = new FormData();
     formData.append('file', file);
     formData.append('bucket', options?.bucket || 'property-images');
+    formData.append('useSupabase', options?.useSupabase !== false ? 'true' : 'false');
     
-    // Determine which storage to use
-    let endpoint = '/api/upload';
-    if (options?.useSupabase && supabase) {
-      endpoint = '/api/upload-supabase';
-    } else if (options?.useImgur) {
-      formData.append('useImgur', 'true');
-    }
-    
-    const response = await fetch(endpoint, {
+    const response = await fetch('/api/upload', {
       method: 'POST',
       body: formData,
     });
