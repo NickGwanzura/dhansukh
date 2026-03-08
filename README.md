@@ -2,8 +2,24 @@
 
 A high-conversion, luxury hospitality landing page for **Dhan Sukh House**, a premium estate in Belvedere, Harare, featuring a 4-bedroom villa and self-catering garden cottages.
 
+**Live Site:** https://dhansukh-main.vercel.app
+
+---
+
+## 🔐 Admin Panel Access
+
+**URL:** https://dhansukh-main.vercel.app/#admin
+
+**Password:** `dhansukh_2026$`
+
+**📖 Image Upload Guide:** See [IMAGE_UPLOAD_GUIDE.md](./IMAGE_UPLOAD_GUIDE.md) for detailed instructions on uploading and managing images.
+
+---
+
 ## 🌿 Our Story
 At Dhan-Sukh, our story is rooted in a 65-year tradition of open doors and open hearts. The name reflects our deepest values: **Dhan (Wealth)** and **Sukh (Happiness)**. To us, true wealth is the abundance of happiness we can share with others.
+
+---
 
 ## ✨ Key Features
 - **Premium Hero Slider**: A high-end, automatic cross-fade carousel with Ken Burns zoom effects and manual controls.
@@ -14,30 +30,80 @@ At Dhan-Sukh, our story is rooted in a 65-year tradition of open doors and open 
     - **Booking Manager**: Visual calendar to block or open dates for each unit.
     - **Hero Management**: Add, remove, and reorder slides for the main landing page.
     - **Content Engine**: Edit descriptions, prices, and features with real-time updates.
-    - **Cloud Persistence**: Full state synchronization via Supabase.
+    - **Image Upload**: Direct upload or external URL support (Imgur, etc.).
 
-## 📸 Content Management
-The app now features a robust Admin Panel (`#admin`) for managing all content without touching code:
-1. **Media Library**: All uploaded images are stored in a central library for easy reuse across different sections.
-2. **Main vs. Gallery**: Clear distinction in the UI between the primary "Cover Photo" (used in listings) and the "Gallery Collection" (shown in the lightbox).
-3. **Hero Slider**: Manage 3 or more images to create a dynamic first impression.
+---
 
-## ☁️ Cloud Setup & Persistence
-To enable "sticky" changes that persist across devices:
-1. Go to the **Cloud Settings** tab in the Admin Panel.
-2. Enter your **Supabase URL** and **Anon Key**.
-3. Run the provided **SQL Setup** script in your Supabase SQL Editor to create the necessary tables and storage buckets.
-4. Once configured, all bookings and content updates will be saved to the cloud instantly.
+## 📸 Managing Images
+
+### Quick Start
+
+1. Go to **Admin Panel** (`#admin`)
+2. Enter password: `dhansukh_2026$`
+3. Choose tab: **Hero Slider** or **Villa & Cottages**
+4. Upload images or add URLs
+5. Click **Save Changes**
+
+### Two Upload Methods
+
+| Method | Best For | Max Size |
+|--------|----------|----------|
+| **Direct Upload** | Small images (<500KB) | ~50MB total storage |
+| **External URL** (Imgur) | Large/high-res images | Unlimited |
+
+### 📖 Full Guide
+See **[IMAGE_UPLOAD_GUIDE.md](./IMAGE_UPLOAD_GUIDE.md)** for:
+- Step-by-step upload instructions
+- Imgur integration (works in Zimbabwe)
+- Image compression tips
+- Storage management
+- Troubleshooting
+
+---
+
+## ☁️ Storage Information
+
+The app uses **IndexedDB** for local browser storage:
+- **Capacity:** ~50MB
+- **Data Saved:** Images, bookings, content
+- **Limitation:** Storage is per-browser (not shared across devices)
+
+**Recommendation:** Use **external URLs** (Imgur) for large images to save space.
+
+---
 
 ## 🛠 Tech Stack
-- **Frontend**: React 19 (ESM modules)
-- **Styling**: Tailwind CSS with custom `ease-spring` transitions.
-- **Backend/Persistence**: Supabase (PostgreSQL & Storage).
-- **Icons**: Lucide React.
-- **Type Safety**: TypeScript.
+- **Frontend**: React 19 + TypeScript
+- **Styling**: Tailwind CSS with custom transitions
+- **Storage**: IndexedDB (browser-based)
+- **Icons**: Lucide React
+- **Build**: Vite
+
+---
 
 ## 📞 Booking Information
 All bookings are managed via WhatsApp: **+263 712 201 681**
 
 ---
+
+## 📁 Project Structure
+
+```
+├── App.tsx                 # Main application
+├── components/             # React components
+│   ├── AdminPanel.tsx     # Admin dashboard
+│   ├── Hero.tsx           # Hero slider
+│   ├── MainHouse.tsx      # Villa section
+│   ├── Cottages.tsx       # Cottages section
+│   └── ...
+├── lib/
+│   └── storage.ts         # IndexedDB storage
+├── api/
+│   └── upload.js          # Image upload endpoint
+├── IMAGE_UPLOAD_GUIDE.md  # 📖 Image upload manual
+└── README.md              # This file
+```
+
+---
+
 *Created with heartfelt hospitality for the Dhan-Sukh Family.*

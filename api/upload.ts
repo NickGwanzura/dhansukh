@@ -1,10 +1,12 @@
-// Vercel serverless function for file uploads
+// Image upload endpoint - Imgur primary, base64 fallback
 export const config = {
-  runtime: 'nodejs',
+  runtime: 'edge',
 };
 
+// Imgur Client ID for anonymous uploads
+const IMGUR_CLIENT_ID = '546c25a59c58ad7';
+
 export default async function handler(req: Request) {
-  // Only allow POST
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }
@@ -12,65 +14,96 @@ export default async function handler(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File;
+    const useImgur = formData.get('useImgur') !== 'false'; // Default to Imgur
     
     if (!file) {
-      return new Response(JSON.stringify({ error: 'No file provided' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: 'No file provided' }), { 
+        status: 400, 
+        headers: { 'Content-Type': 'application/json' } 
+      });
     }
 
-    // Get the file as a buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      return new Response(JSON.stringify({ error: 'Only image files allowed' }), { 
+        status: 400, 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
 
-    // Call UploadThing API
-    const token = process.env.UPLOADTHING_TOKEN || "eyJhcGlLZXkiOiJza19saXZlXzVjOTRhZmYyM2MxMWEyNGQzYTljZDhiYjA5MWQ4MmZiZTI2OGNmM2MxODVkYTk3YTM3MTBiZDg0ZjY2OWE0OGYiLCJhcHBJZCI6IjQ1OWl5aml5eW0iLCJyZWdpb25zIjpbInNlYTEiXX0=";
-    const appId = "459ijiym";
+    const sizeInKB = Math.round(file.size / 1024);
 
-    // First, get upload URL
-    const metadataResponse = await fetch('https://uploadthing.com/v6/multipart', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        files: [{
-          name: file.name,
-          size: file.size,
-          type: file.type,
-        }],
-        metadata: {
-          appId,
+    // Use Imgur for larger files or when explicitly requested
+    if (useImgur || file.size > 500 * 1024) {
+      try {
+        // Convert file to base64 for Imgur
+        const arrayBuffer = await file.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        
+        // Upload to Imgur
+        const imgurResponse = await fetch('https://api.imgur.com/3/image', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Client-ID ${IMGUR_CLIENT_ID}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            image: base64,
+            type: 'base64',
+            title: file.name,
+          }),
+        });
+
+        if (!imgurResponse.ok) {
+          const errorData = await imgurResponse.text();
+          console.error('Imgur error:', imgurResponse.status, errorData);
+          throw new Error(`Imgur upload failed: ${imgurResponse.status}`);
         }
-      }),
+
+        const imgurData = await imgurResponse.json();
+        
+        if (imgurData.success && imgurData.data?.link) {
+          return new Response(JSON.stringify({ 
+            url: imgurData.data.link,
+            deleteHash: imgurData.data.deletehash,
+            name: file.name,
+            size: file.size,
+            source: 'imgur',
+          }), { 
+            status: 200, 
+            headers: { 'Content-Type': 'application/json' } 
+          });
+        } else {
+          throw new Error('Imgur response invalid');
+        }
+      } catch (imgurError: any) {
+        console.error('Imgur upload failed, falling back to base64:', imgurError);
+        // Fall through to base64
+      }
+    }
+
+    // Fallback: Base64 inline (for small images)
+    const arrayBuffer = await file.arrayBuffer();
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    const dataUrl = `data:${file.type};base64,${base64}`;
+
+    return new Response(JSON.stringify({ 
+      url: dataUrl,
+      name: file.name,
+      size: file.size,
+      source: 'base64',
+    }), { 
+      status: 200, 
+      headers: { 'Content-Type': 'application/json' } 
     });
-
-    if (!metadataResponse.ok) {
-      const errorText = await metadataResponse.text();
-      return new Response(JSON.stringify({ error: `UploadThing error: ${errorText}` }), { status: metadataResponse.status, headers: { 'Content-Type': 'application/json' } });
-    }
-
-    const metadata = await metadataResponse.json();
-    const { uploadUrl, fields, fileUrl } = metadata.data;
-
-    // Upload the file to the presigned URL
-    const uploadFormData = new FormData();
-    for (const [key, value] of Object.entries(fields)) {
-      uploadFormData.append(key, String(value));
-    }
-    uploadFormData.append('file', new Blob([buffer], { type: file.type }), file.name);
-
-    const uploadResponse = await fetch(uploadUrl, {
-      method: 'POST',
-      body: uploadFormData,
-    });
-
-    if (!uploadResponse.ok) {
-      return new Response(JSON.stringify({ error: 'Failed to upload file' }), { status: uploadResponse.status, headers: { 'Content-Type': 'application/json' } });
-    }
-
-    return new Response(JSON.stringify({ url: fileUrl }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-  } catch (error) {
+    
+  } catch (error: any) {
     console.error('Upload error:', error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Upload failed' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ 
+      error: error.message || 'Upload failed',
+    }), { 
+      status: 500, 
+      headers: { 'Content-Type': 'application/json' } 
+    });
   }
 }

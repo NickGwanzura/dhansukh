@@ -1,49 +1,71 @@
 
 /**
- * 🛠️ Configuration for Database
+ * 🛠️ Configuration for Database & Storage
  * 
- * Using Neon PostgreSQL for data storage
- * Using UploadThing for image uploads
+ * Storage Options:
+ * - Supabase Storage (1GB free, recommended)
+ * - Imgur (unlimited, anonymous)
+ * - Base64 (browser storage, limited)
  * 
- * Environment Variables (set in Vercel):
- * - NEON_CONNECTION_STRING
- * - UPLOADTHING_TOKEN
+ * Environment Variables:
+ * - SUPABASE_URL
+ * - SUPABASE_ANON_KEY
  */
 
-// Neon Database Configuration
+import { createClient } from '@supabase/supabase-js';
+
+// Supabase Configuration
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY || '';
+
+// Create Supabase client only if credentials are available
+export const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY) 
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+export const isSupabaseConnected = () => !!supabase;
+
+// Neon Database Configuration (legacy)
 export const NEON_CONFIG = {
-  connectionString: process.env.NEON_CONNECTION_STRING || "postgresql://neondb_owner:npg_7uRDkK9LnHZs@ep-flat-art-ad96qbvu-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+  connectionString: process.env.NEON_CONNECTION_STRING || ""
 };
-
-// UploadThing Configuration
-export const UPLOADTHING_CONFIG = {
-  token: process.env.UPLOADTHING_TOKEN || "eyJhcGlLZXkiOiJza19saXZlXzVjOTRhZmYyM2MxMWEyNGQzYTljZDhiYjA5MWQ4MmZiZTI2OGNmM2MxODVkYTk3YTM3MTBiZDg0ZjY2OWE0OGYiLCJhcHBJZCI6IjQ1OWl5aml5eW0iLCJyZWdpb25zIjpbInNlYTEiXX0=",
-  appId: "459ijiym"
-};
-
-// Supabase is not used - using Neon + UploadThing instead
-export const supabase: any = null;
 
 // Initialize database
 export async function initializeDatabase(): Promise<void> {
-  console.log('Using Neon PostgreSQL for data storage');
-  console.log('Using UploadThing for image uploads');
+  if (supabase) {
+    console.log('Supabase connected successfully');
+  } else {
+    console.log('Supabase not configured - using local storage');
+  }
 }
 
-export const isSupabaseConnected = () => false;
-
-// For backwards compatibility
-export const sql = null;
-export const utapi = null;
-
-// UploadThing helper for client-side uploads using the local API route
-export const uploadFile = async (file: File): Promise<{ url: string; error: string | null }> => {
+// Upload helper - tries Supabase first, falls back to Imgur/base64
+export const uploadFile = async (
+  file: File, 
+  options?: { 
+    useSupabase?: boolean;
+    useImgur?: boolean;
+    bucket?: string;
+  }
+): Promise<{ 
+  url: string; 
+  error: string | null;
+  source?: string;
+}> => {
   try {
-    // Use local API route which proxies to UploadThing (avoids CORS)
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('bucket', options?.bucket || 'property-images');
     
-    const response = await fetch('/api/upload', {
+    // Determine which storage to use
+    let endpoint = '/api/upload';
+    if (options?.useSupabase && supabase) {
+      endpoint = '/api/upload-supabase';
+    } else if (options?.useImgur) {
+      formData.append('useImgur', 'true');
+    }
+    
+    const response = await fetch(endpoint, {
       method: 'POST',
       body: formData,
     });
@@ -54,9 +76,58 @@ export const uploadFile = async (file: File): Promise<{ url: string; error: stri
     }
     
     const data = await response.json();
-    return { url: data.url || '', error: null };
+    return { 
+      url: data.url || '', 
+      error: null,
+      source: data.source || 'unknown',
+    };
   } catch (error) {
     console.error('Upload error:', error);
-    return { url: '', error: error instanceof Error ? error.message : 'Upload failed' };
+    return { 
+      url: '', 
+      error: error instanceof Error ? error.message : 'Upload failed' 
+    };
+  }
+};
+
+// Upload directly to Supabase (client-side)
+export const uploadToSupabase = async (
+  file: File,
+  bucket: string = 'property-images',
+  path: string = ''
+): Promise<{ url: string | null; error: string | null }> => {
+  if (!supabase) {
+    return { url: null, error: 'Supabase not configured' };
+  }
+
+  try {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const filePath = path ? `${path}/${fileName}` : fileName;
+
+    // Upload file
+    const { error: uploadError } = await supabase.storage
+      .from(bucket)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(filePath);
+
+    return { url: publicUrl, error: null };
+  } catch (error) {
+    console.error('Supabase upload error:', error);
+    return { 
+      url: null, 
+      error: error instanceof Error ? error.message : 'Upload failed' 
+    };
   }
 };

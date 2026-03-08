@@ -12,6 +12,14 @@ interface CottagesProps {
 }
 
 const Cottages: React.FC<CottagesProps> = ({ data, onCheckAvailability, onOpenGallery }) => {
+  // Debug logging
+  React.useEffect(() => {
+    console.log('Cottages data received:', data);
+    data.forEach(c => {
+      console.log(`Cottage ${c.id}: image present = ${!!c.image}, image length = ${c.image?.length || 0}`);
+    });
+  }, [data]);
+  
   return (
     <section id="cottages" className="py-28 bg-gray-bg scroll-mt-24 border-t border-gray-100">
       <div className="container mx-auto px-6 md:px-12">
@@ -31,12 +39,22 @@ const Cottages: React.FC<CottagesProps> = ({ data, onCheckAvailability, onOpenGa
                 className="relative h-64 overflow-hidden cursor-pointer bg-gray-100"
                 onClick={() => onOpenGallery(cottage.galleryImages, cottage.title)}
               >
-                <img 
-                  src={cottage.image} 
-                  alt={cottage.title} 
-                  className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-[1.5s]"
-                  onError={handleImageError}
-                />
+                {cottage.image && cottage.image.trim() !== '' ? (
+                  <img 
+                    src={cottage.image} 
+                    alt={cottage.title}
+                    className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-[1.5s]"
+                    onError={(e) => {
+                      console.error(`Image error for ${cottage.title}:`, cottage.image.substring(0, 50));
+                      handleImageError(e);
+                    }}
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                    <span className="text-gray-400 font-serif italic text-sm">{cottage.title} (no image)</span>
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-colors duration-500"></div>
                 <div className="absolute bottom-4 left-4 text-white text-xs font-bold tracking-wider bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 uppercase">
                     Garden View

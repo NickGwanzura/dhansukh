@@ -7,30 +7,38 @@ interface HeroProps {
   images?: string[];
 }
 
-const Hero: React.FC<HeroProps> = ({ images = ["images/cot8.jpeg"] }) => {
+const Hero: React.FC<HeroProps> = ({ images = [] }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
+
+  // Reset index when images change
+  useEffect(() => {
+    setCurrentIndex(0);
+    setLoadedImages(new Set());
+  }, [images?.join(',')]);
+
+  const sliderImages = images && images.length > 0 && images.some(img => img && img.trim() !== '')
+    ? images.filter(img => img && img.trim() !== '')
+    : ["https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1920"];
 
   const nextSlide = useCallback(() => {
-    setCurrentIndex((prev) => (prev + 1) % images.length);
-  }, [images.length]);
+    setCurrentIndex((prev) => (prev + 1) % sliderImages.length);
+  }, [sliderImages.length]);
 
   const prevSlide = useCallback(() => {
-    setCurrentIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
-  }, [images.length]);
+    setCurrentIndex((prev) => (prev === 0 ? sliderImages.length - 1 : prev - 1));
+  }, [sliderImages.length]);
 
   useEffect(() => {
-    if (images.length <= 1 || isPaused) return;
+    if (sliderImages.length <= 1 || isPaused) return;
     
     const interval = setInterval(() => {
       nextSlide();
     }, 6000);
 
     return () => clearInterval(interval);
-  }, [images.length, nextSlide, isPaused]);
-
-  // If images array is empty or undefined, use a fallback
-  const sliderImages = images.length > 0 ? images : ["images/cot8.jpeg"];
+  }, [sliderImages.length, nextSlide, isPaused]);
 
   return (
     <div 
@@ -42,7 +50,7 @@ const Hero: React.FC<HeroProps> = ({ images = ["images/cot8.jpeg"] }) => {
       <div className="absolute inset-0 z-0">
         {sliderImages.map((image, index) => (
           <div
-            key={`${image}-${index}`}
+            key={`slide-${index}-${image.substring(0, 20)}`}
             className={`absolute inset-0 transition-opacity duration-[2000ms] ease-in-out ${
               index === currentIndex ? 'opacity-100' : 'opacity-0'
             }`}
@@ -54,6 +62,8 @@ const Hero: React.FC<HeroProps> = ({ images = ["images/cot8.jpeg"] }) => {
                 index === currentIndex ? 'scale-110 translate-y-2' : 'scale-100 translate-y-0'
               }`}
               onError={handleImageError}
+              loading={index === 0 ? 'eager' : 'lazy'}
+              decoding="async"
             />
           </div>
         ))}

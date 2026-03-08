@@ -65,18 +65,38 @@ export const COTTAGES: Cottage[] = [
   }
 ];
 
-export const HERO_DEFAULT_IMAGES: string[] = [];
+export const HERO_DEFAULT_IMAGES: string[] = [
+  "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1920",
+  "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1920",
+  "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1920"
+];
 
 export const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
   const target = e.currentTarget;
-  target.style.display = 'none';
-  if (target.parentElement) {
-    target.parentElement.classList.add('bg-stone-100', 'flex', 'items-center', 'justify-center');
-    const placeholder = document.createElement('div');
-    placeholder.className = 'text-stone-300 font-serif italic text-sm text-center px-4';
-    placeholder.innerText = 'Dhan Sukh House';
-    target.parentElement.appendChild(placeholder);
+  const originalSrc = target.src;
+  
+  // Don't replace if it's already a data URL (base64 image) - it might just be loading
+  if (originalSrc.startsWith('data:image')) {
+    console.log('Base64 image error (might be large/loading):', originalSrc.substring(0, 50) + '...');
+    // For base64 images, just add a background color and show text instead of replacing
+    target.style.backgroundColor = '#f5f5f4';
+    target.style.objectFit = 'contain';
+    target.style.padding = '20px';
+    target.onerror = null;
+    return;
   }
+  
+  // Don't replace if it's already a placeholder or empty
+  if (!originalSrc || originalSrc.includes('placeholder') || originalSrc === window.location.href) {
+    console.log('Empty or placeholder image');
+    return;
+  }
+  
+  console.error('Image failed to load:', originalSrc);
+  
+  // Set a fallback placeholder image
+  target.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22300%22 viewBox=%220 0 400 300%22%3E%3Crect width=%22400%22 height=%22300%22 fill=%22%23f5f5f4%22/%3E%3Ctext x=%22200%22 y=%22150%22 font-family=%22serif%22 font-size=%2218%22 fill=%22%23a8a29e%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22%3EDhan Sukh House%3C/text%3E%3C/svg%3E';
+  target.onerror = null; // Prevent infinite loop
 };
 
 export const AMENITIES_LIST: Amenity[] = [

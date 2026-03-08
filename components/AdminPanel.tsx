@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { AppState, MainHouseData, Cottage } from '../types';
 import { supabase, uploadFile } from '../supabase';
+import { getStorageUsage } from '../lib/storage';
 // Fix: Import Calendar component
 import Calendar from './Calendar';
 
@@ -24,6 +25,36 @@ interface AdminPanelProps {
   onUpdateHeroImages: (urls: string[]) => void;
 }
 
+// Storage status component
+const StorageStatus: React.FC = () => {
+  const [usage, setUsage] = useState<{ used: number; total: number } | null>(null);
+  
+  useEffect(() => {
+    getStorageUsage().then(setUsage);
+  }, []);
+  
+  if (!usage) return null;
+  
+  const usedMB = (usage.used / (1024 * 1024)).toFixed(1);
+  const totalMB = usage.total ? (usage.total / (1024 * 1024)).toFixed(0) : '?';
+  const percent = usage.total ? Math.round((usage.used / usage.total) * 100) : 0;
+  
+  return (
+    <div className="px-4 py-2 bg-white/5 rounded-lg">
+      <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+        <span>Storage</span>
+        <span>{usedMB}MB / {totalMB}MB</span>
+      </div>
+      <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+        <div 
+          className={`h-full rounded-full ${percent > 80 ? 'bg-red-400' : 'bg-green-400'}`}
+          style={{ width: `${Math.min(percent, 100)}%` }}
+        />
+      </div>
+    </div>
+  );
+};
+
 const AdminPanel: React.FC<AdminPanelProps> = ({ 
   state, isSyncing, onRefreshCloud, onUpdateBookings, 
   onUpdateMainHouse, onUpdateCottage, onUpdateHeroImages 
@@ -35,7 +66,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passkey === '2024') setIsAuthenticated(true);
+    if (passkey === 'dhansukh_2026$') setIsAuthenticated(true);
     else alert('Incorrect passkey');
   };
 
@@ -109,6 +140,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         </nav>
 
         <div className="pt-4 border-t border-white/10 space-y-4">
+          <StorageStatus />
           <button 
             onClick={onRefreshCloud}
             disabled={isSyncing}
@@ -150,10 +182,21 @@ const MediaLibrary: React.FC<{
   single?: boolean;
 }> = ({ label, images, onUpdate, single = false }) => {
   const [isUploading, setIsUploading] = useState(false);
+  const [supabaseConnected, setSupabaseConnected] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputLocalRef = useRef<HTMLInputElement>(null);
+  const fileInputSupabaseRef = useRef<HTMLInputElement>(null);
+
+  // Check Supabase connection on mount
+  useEffect(() => {
+    fetch('/api/test-supabase')
+      .then(r => r.json())
+      .then(data => setSupabaseConnected(data.connected))
+      .catch(() => setSupabaseConnected(false));
+  }, []);
 
   const handleAddUrl = () => {
-    const url = prompt('Enter image URL:');
+    const url = prompt('Enter image URL (e.g., from Imgur):');
     if (url) {
       if (single) onUpdate([url]);
       else onUpdate([...images, url]);
@@ -165,46 +208,140 @@ const MediaLibrary: React.FC<{
     else onUpdate(images.filter((_, i) => i !== idx));
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, storage: 'imgur' | 'local' | 'supabase' = 'imgur') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Only image files (JPG, PNG, WebP) are allowed.');
+      return;
+    }
+
+    const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+    const sizeInKB = Math.round(file.size / 1024);
+
     setIsUploading(true);
+    
     try {
-      // Use UploadThing for file uploads
-      const result = await uploadFile(file);
+      let endpoint = '/api/upload';
+      let source = 'imgur';
       
-      if (result.error) {
-        throw new Error(result.error);
-      } else if (result.url) {
+      if (storage === 'supabase') {
+        endpoint = '/api/upload-supabase';
+        source = 'supabase';
+      } else if (storage === 'local') {
+        source = 'base64';
+      }
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      if (storage === 'imgur' || storage === 'local') {
+        formData.append('useImgur', storage === 'imgur' ? 'true' : 'false');
+      }
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok || result.error) {
+        throw new Error(result.error || 'Upload failed');
+      }
+      
+      if (result.url) {
         if (single) onUpdate([result.url]);
         else onUpdate([...images, result.url]);
+        
+        const displaySource = result.source || source;
+        console.log(`Image uploaded (${displaySource}): ${sizeInKB}KB`);
+        
+        if (displaySource === 'supabase') {
+          alert(`✅ Uploaded to Supabase: ${sizeInKB}KB`);
+        }
+      } else {
+        throw new Error('No URL returned');
       }
     } catch (err: any) {
-      alert(`Error uploading: ${err.message}`);
+      console.error('Upload error:', err);
+      alert(`Upload failed: ${err.message}`);
     } finally {
       setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (fileInputLocalRef.current) fileInputLocalRef.current.value = '';
+      if (fileInputSupabaseRef.current) fileInputSupabaseRef.current.value = '';
     }
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">{label}</label>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+           {/* Imgur Upload - Recommended */}
            <button 
              onClick={() => fileInputRef.current?.click()} 
              disabled={isUploading}
-             className="text-xs font-bold text-brand flex items-center gap-1.5 px-3 py-1.5 bg-brand/5 rounded-lg hover:bg-brand/10 transition-colors disabled:opacity-50"
+             className="text-xs font-bold text-green-600 flex items-center gap-1.5 px-3 py-1.5 bg-green-50 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50"
+             title="Upload to Imgur - Unlimited storage, works in Zimbabwe"
            >
-             {isUploading ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />}
-             Upload File
+             {isUploading ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
+             Upload to Imgur
            </button>
+           
+           {/* Local Upload - Small files only */}
+           <button 
+             onClick={() => fileInputLocalRef.current?.click()} 
+             disabled={isUploading}
+             className="text-xs font-bold text-brand flex items-center gap-1.5 px-3 py-1.5 bg-brand/5 rounded-lg hover:bg-brand/10 transition-colors disabled:opacity-50"
+             title="Store locally - Limited to 50MB total"
+           >
+             {isUploading ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />}
+             Store Local
+           </button>
+           
            <button onClick={handleAddUrl} className="text-xs font-bold text-gray-500 flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
              <Plus size={14} /> Add URL
            </button>
-           <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
+           
+           {/* Supabase Upload - If configured */}
+           {supabaseConnected && (
+             <button 
+               onClick={() => fileInputSupabaseRef.current?.click()} 
+               disabled={isUploading}
+               className="text-xs font-bold text-blue-600 flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+               title="Upload to Supabase - 1GB free storage"
+             >
+               {isUploading ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />}
+               Supabase
+             </button>
+           )}
+           
+           <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'imgur')} />
+           <input type="file" ref={fileInputLocalRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'local')} />
+           <input type="file" ref={fileInputSupabaseRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'supabase')} />
         </div>
+      </div>
+      
+      {/* Storage info */}
+      <div className="text-[10px] text-gray-400 flex gap-4 flex-wrap">
+        <span className="flex items-center gap-1" title="Unlimited free storage">
+          <span className="w-2 h-2 rounded-full bg-green-500"></span>
+          Imgur: Unlimited
+        </span>
+        <span className="flex items-center gap-1" title="Limited browser storage">
+          <span className="w-2 h-2 rounded-full bg-brand"></span>
+          Local: 50MB
+        </span>
+        {supabaseConnected && (
+          <span className="flex items-center gap-1" title="Supabase storage">
+            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+            Supabase: 1GB
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -226,8 +363,10 @@ const MediaLibrary: React.FC<{
            </div>
         )}
       </div>
-      {!supabase && (
-         <p className="text-[10px] text-amber-600 font-medium italic">* Upload disabled: No Supabase connection.</p>
+      {images.filter(img => img).length > 0 && (
+         <p className="text-[10px] text-gray-400 font-medium">
+           {images.filter(img => img).length} image(s) added. Click Save Changes to persist.
+         </p>
       )}
     </div>
   );

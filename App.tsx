@@ -16,6 +16,7 @@ import AdminPanel from './components/AdminPanel';
 import { MAIN_HOUSE, COTTAGES, MOCK_AVAILABILITY, HERO_DEFAULT_IMAGES } from './constants';
 import { AppState, MainHouseData, Cottage } from './types';
 import { supabase, initializeDatabase } from './supabase';
+import { loadState, saveState, getStorageUsage } from './lib/storage';
 
 type PageView = 'home' | 'privacy' | 'terms' | 'sitemap' | 'admin';
 
@@ -37,32 +38,60 @@ function App() {
   const fetchCloudState = useCallback(async (manual = false) => {
     if (manual) setIsSyncing(true);
     
-    // Attempt cache load first for speed
-    const cached = localStorage.getItem('dhan_sukh_state');
-    if (cached && !appState) {
-      setAppState(migrateState(JSON.parse(cached)));
-    }
-
-    // Using localStorage for data persistence
-    // (Neon database would require server-side API)
-    if (!appState) {
+    // Only load once on initial mount
+    if (isInitialLoadDone.current && !manual) return;
+    
+    // Try IndexedDB first (larger storage)
+    try {
+      const dbState = await loadState();
+      if (dbState) {
+        console.log('Loaded from IndexedDB:', dbState);
+        if (dbState.cottages) {
+          dbState.cottages.forEach((c: any) => {
+            console.log(`Loaded cottage ${c.id}: image = ${c.image ? c.image.substring(0, 50) + '...' : 'EMPTY'}`);
+          });
+        }
+        setAppState(migrateState(dbState));
+      } else {
+        // Fallback to localStorage for migration
+        const cached = localStorage.getItem('dhan_sukh_state');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          console.log('Migrating from localStorage:', parsed);
+          setAppState(migrateState(parsed));
+          // Migrate to IndexedDB
+          await saveState(parsed);
+          localStorage.removeItem('dhan_sukh_state');
+        } else {
+          console.log('No cached state, using defaults');
+          setAppState(migrateState({}));
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load state:', e);
       setAppState(migrateState({}));
     }
 
     setIsLoading(false);
     setIsSyncing(false);
     isInitialLoadDone.current = true;
-  }, [appState]);
+  }, []);
 
   const saveToCloud = async (newState: AppState) => {
     if (!isInitialLoadDone.current) return;
     
     setIsSyncing(true);
     try {
-      // Save to localStorage (Neon would require server-side API)
-      localStorage.setItem('dhan_sukh_state', JSON.stringify(newState));
-    } catch (e) {
+      await saveState(newState);
+      
+      // Log storage usage
+      const usage = await getStorageUsage();
+      const usedMB = (usage.used / (1024 * 1024)).toFixed(1);
+      const totalMB = usage.total ? (usage.total / (1024 * 1024)).toFixed(0) : 'unknown';
+      console.log(`Saved to IndexedDB. Storage used: ${usedMB}MB / ${totalMB}MB`);
+    } catch (e: any) {
       console.error("Save failed:", e);
+      alert(`Failed to save: ${e.message}\n\nTry using smaller images or removing some images.`);
     } finally {
       setIsSyncing(false);
     }
@@ -157,6 +186,7 @@ function App() {
       case 'terms': return <Terms />;
       case 'sitemap': return <Sitemap />;
       default:
+        console.log('Rendering with heroImages:', appState.heroImages);
         return (
           <>
             <Hero images={appState.heroImages} />

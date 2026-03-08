@@ -23,12 +23,19 @@ const MainHouse: React.FC<MainHouseProps> = ({ data, onCheckAvailability, onOpen
                 className="relative overflow-hidden rounded-[2rem] shadow-2xl hover:shadow-airbnb-hover transition-all duration-700 group cursor-pointer aspect-[4/3] lg:aspect-[3/4] bg-gray-100"
                 onClick={() => onOpenGallery(data.galleryImages, data.title)}
             >
-              <img 
-                src={data.image} 
-                alt={data.title} 
-                className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-[1.5s]" 
-                onError={handleImageError}
-              />
+              {data.image ? (
+                <img 
+                  src={data.image} 
+                  alt={data.title} 
+                  className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-[1.5s]" 
+                  onError={handleImageError}
+                  loading="lazy"
+                />
+              ) : (
+                <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                  <span className="text-gray-400 font-serif italic">{data.title}</span>
+                </div>
+              )}
               <div className="absolute top-8 left-8 bg-white/90 backdrop-blur-md px-5 py-2.5 rounded-full shadow-lg z-10 flex items-center gap-2">
                 <Star size={14} className="text-gold fill-gold" />
                 <span className="text-xs font-bold tracking-widest uppercase text-gray-dark font-sans">Premium Villa</span>

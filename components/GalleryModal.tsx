@@ -37,20 +37,25 @@ const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose, images, ti
 
         {/* Grid */}
         <div className="flex-grow overflow-y-auto pointer-events-auto pr-2 scrollbar-hide">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {images.map((img, idx) => (
-                    <div key={idx} className="relative aspect-[4/3] group overflow-hidden rounded-xl bg-gray-800">
-                        <img 
-                            src={img} 
-                            alt={`${title} view ${idx + 1}`}
-                            loading="lazy"
-                            className="w-full h-full object-cover transform transition-transform duration-700 group-hover:scale-105"
-                            // Fix: handleImageError expects exactly one argument (the event)
-                            onError={handleImageError}
-                        />
-                    </div>
-                ))}
-            </div>
+            {images.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-white/50">
+                    <p>No images in gallery yet.</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {images.filter(img => img && img.trim() !== '').map((img, idx) => (
+                        <div key={`${idx}-${img.substring(0, 20)}`} className="relative aspect-[4/3] group overflow-hidden rounded-xl bg-gray-800">
+                            <img 
+                                src={img} 
+                                alt={`${title} view ${idx + 1}`}
+                                loading="lazy"
+                                className="w-full h-full object-cover transform transition-transform duration-700 group-hover:scale-105"
+                                onError={handleImageError}
+                            />
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
         
       </div>
